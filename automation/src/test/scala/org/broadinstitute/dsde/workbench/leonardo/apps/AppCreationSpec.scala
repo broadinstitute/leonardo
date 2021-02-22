@@ -2,9 +2,10 @@ package org.broadinstitute.dsde.workbench.leonardo
 package apps
 
 import org.broadinstitute.dsde.workbench.DoneCheckable
-import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout}
+import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, Generators}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ListAppResponse, PersistentDiskRequest}
+import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
@@ -16,19 +17,22 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
   implicit val auth: Authorization =
     Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
 
-  "create and delete an app" in { _ =>
+  "create, delete an app and re-create an app with same disk" taggedAs Tags.SmokeTest in { _ =>
     withNewProject { googleProject =>
       val appName = randomAppName
+      val restoreAppName = AppName(s"restore-${appName.value}")
+      val diskName = Generators.genDiskName.sample.get
 
       val createAppRequest = defaultCreateAppRequest.copy(
         diskConfig = Some(
           PersistentDiskRequest(
-            randomDiskName,
-            Some(DiskSize(500)),
+            diskName,
+            Some(DiskSize(300)),
             None,
             Map.empty
           )
-        )
+        ),
+        customEnvironmentVariables = Map("WORKSPACE_NAME" -> "Galaxy-Workshop-ASHG_2020_GWAS_Demo")
       )
 
       LeonardoApiClient.client.use { implicit client =>
@@ -44,7 +48,7 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
           _ = getAppResponse.status should (be(AppStatus.Provisioning) or be(AppStatus.Precreating))
 
           // Verify the app eventually becomes Running
-          _ <- testTimer.sleep(60 seconds)
+          _ <- testTimer.sleep(120 seconds)
           monitorCreateResult <- streamUntilDoneOrTimeout(
             getApp,
             120,
@@ -59,7 +63,7 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
           _ <- testTimer.sleep(1 minute)
 
           // Delete the app
-          _ <- LeonardoApiClient.deleteApp(googleProject, appName)
+          _ <- LeonardoApiClient.deleteApp(googleProject, appName, false)
 
           // Verify getApp again
           getAppResponse <- getApp
@@ -84,6 +88,8 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
               s"AppCreationSpec: app ${googleProject.value}/${appName.value} delete result: $monitorDeleteResult"
             )
           }
+          // Verify creating another app with the same disk doesn't error out
+          _ <- LeonardoApiClient.createAppWithWait(googleProject, restoreAppName, createAppRequest)
         } yield ()
       }
     }
@@ -92,11 +98,12 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
   "stop and start an app" in { _ =>
     withNewProject { googleProject =>
       val appName = randomAppName
+      val diskName = Generators.genDiskName.sample.get
 
       val createAppRequest = defaultCreateAppRequest.copy(
         diskConfig = Some(
           PersistentDiskRequest(
-            randomDiskName,
+            diskName,
             Some(DiskSize(500)),
             None,
             Map.empty
@@ -117,7 +124,7 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
           _ = getAppResponse.status should (be(AppStatus.Provisioning) or be(AppStatus.Precreating))
 
           // Verify the app eventually becomes Running
-          _ <- testTimer.sleep(60 seconds)
+          _ <- testTimer.sleep(90 seconds)
           monitorCreateResult <- streamUntilDoneOrTimeout(
             getApp,
             120,
@@ -137,7 +144,7 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
           _ = getAppResponse.status should (be(AppStatus.Stopping) or be(AppStatus.PreStopping))
 
           // Verify the app eventually becomes Stopped
-          _ <- testTimer.sleep(30 seconds)
+          _ <- testTimer.sleep(60 seconds)
           monitorStopResult <- streamUntilDoneOrTimeout(
             getApp,
             180,
@@ -172,7 +179,8 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
           _ <- testTimer.sleep(1 minute)
 
           // Delete the app
-          _ <- LeonardoApiClient.deleteApp(googleProject, appName)
+          _ <- LeonardoApiClient.deleteApp(googleProject, appName, true)
+          _ <- testTimer.sleep(30 seconds)
 
           // Verify getApp again
           getAppResponse <- getApp
@@ -193,8 +201,11 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
               s"AppCreationSpec: app ${googleProject.value}/${appName.value} delete result: $monitorDeleteResult"
             )
           }
-
-        } yield ()
+          // verify disk is also deleted
+          getDiskResp <- LeonardoApiClient.getDisk(googleProject, diskName).attempt
+        } yield {
+          getDiskResp.toOption shouldBe (None)
+        }
       }
     }
   }

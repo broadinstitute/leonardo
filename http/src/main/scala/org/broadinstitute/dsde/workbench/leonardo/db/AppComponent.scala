@@ -3,17 +3,19 @@ package db
 
 import java.sql.SQLIntegrityConstraintViolationException
 import java.time.Instant
-
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import slick.lifted.Tag
 import LeoProfile.api._
 import LeoProfile.mappedColumnImplicits._
 import akka.http.scaladsl.model.StatusCodes
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.{dummyDate, unmarshalDestroyedDate}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.Release
+import com.rms.miu.slickcats.DBIOInstances._
+import cats.syntax.all._
+import org.broadinstitute.dsde.workbench.leonardo.http.WORKSPACE_NAME_KEY
 import org.http4s.Uri
 
 import scala.concurrent.ExecutionContext
@@ -153,8 +155,11 @@ object appQuery extends TableQuery(new AppTable(_)) {
         DBIO.failed(AppExistsForProjectException(appResult.app.appName, cluster.googleProject))
       )
 
-      namespaceId <- namespaceQuery.save(nodepool.clusterId, namespaceName)
-      namespace = saveApp.app.appResources.namespace.copy(id = namespaceId)
+      namespace <- if (saveApp.app.appResources.namespace.id.id == -1)
+        namespaceQuery
+          .save(nodepool.clusterId, namespaceName)
+          .map(id => saveApp.app.appResources.namespace.copy(id = id))
+      else DBIO.successful(saveApp.app.appResources.namespace)
 
       diskOpt = saveApp.app.appResources.disk
 
@@ -175,7 +180,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
         saveApp.app.auditInfo.createdDate,
         saveApp.app.auditInfo.destroyedDate.getOrElse(dummyDate),
         saveApp.app.auditInfo.dateAccessed,
-        namespaceId,
+        namespace.id,
         diskOpt.map(_.id),
         if (saveApp.app.customEnvironmentVariables.isEmpty) None else Some(saveApp.app.customEnvironmentVariables),
         saveApp.app.descriptorPath,
@@ -191,6 +196,11 @@ object appQuery extends TableQuery(new AppTable(_)) {
     getByIdQuery(id)
       .map(_.status)
       .update(status)
+
+  def markAsErrored(id: AppId): DBIO[Int] =
+    getByIdQuery(id)
+      .map(x => (x.status, x.diskId))
+      .update((AppStatus.Error, None))
 
   def updateChart(id: AppId, chart: Chart): DBIO[Int] =
     getByIdQuery(id)
@@ -215,6 +225,25 @@ object appQuery extends TableQuery(new AppTable(_)) {
 
   def getDiskId(id: AppId)(implicit ec: ExecutionContext): DBIO[Option[DiskId]] =
     getByIdQuery(id).result.map(_.headOption.flatMap(_.diskId))
+
+  def getLastUsedApp(id: AppId, traceId: Option[TraceId])(implicit ec: ExecutionContext): DBIO[Option[LastUsedApp]] =
+    appQuery.filter(_.id === id).join(namespaceQuery).on(_.namespaceId === _.id).result.flatMap { x =>
+      x.headOption.traverse[DBIO, LastUsedApp] {
+        case (app, namespace) =>
+          app.customEnvironmentVariables match {
+            case None =>
+              DBIO.failed(new LeoException(s"no customEnvironmentVariables found for ${id}", traceId = traceId))
+            case Some(envs) =>
+              envs.get(WORKSPACE_NAME_KEY) match {
+                case Some(ws) =>
+                  DBIO.successful(
+                    LastUsedApp(app.chart, app.release, app.namespaceId, namespace.namespaceName, WorkspaceName(ws))
+                  )
+                case None => DBIO.failed(new LeoException(s"no WORKSPACE_NAME found for ${id}", traceId = traceId))
+              }
+          }
+      }
+    }
 
   def updateKubernetesServiceAccount(id: AppId, ksa: ServiceAccountName): DBIO[Int] =
     getByIdQuery(id)
@@ -242,3 +271,10 @@ case class AppExistsForProjectException(appName: AppName, googleProject: GoogleP
       StatusCodes.Conflict,
       traceId = None
     )
+
+final case class WorkspaceName(asString: String) extends AnyVal
+final case class LastUsedApp(chart: Chart,
+                             release: Release,
+                             namespaceId: NamespaceId,
+                             namespaceName: NamespaceName,
+                             workspace: WorkspaceName)

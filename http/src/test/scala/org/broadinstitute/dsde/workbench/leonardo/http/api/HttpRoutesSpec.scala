@@ -19,11 +19,11 @@ import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.HttpRoutesSpec._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  AppService,
   BaseMockRuntimeServiceInterp,
   DeleteRuntimeRequest,
-  KubernetesService,
+  MockAppService,
   MockDiskServiceInterp,
-  MockKubernetesServiceInterp,
   MockRuntimeServiceInterp,
   RuntimeService
 }
@@ -52,7 +52,7 @@ class HttpRoutesSpec
     proxyService,
     MockRuntimeServiceInterp,
     MockDiskServiceInterp,
-    MockKubernetesServiceInterp,
+    MockAppService,
     timedUserInfoDirectives,
     contentSecurityPolicy,
     refererConfig
@@ -264,7 +264,7 @@ class HttpRoutesSpec
   }
 
   it should "not delete disk when deleting a kubernetes app with PD enabled if deleteDisk is not set" in {
-    val kubernetesService = new MockKubernetesServiceInterp {
+    val kubernetesService = new MockAppService {
       override def deleteApp(request: DeleteAppRequest)(
         implicit as: Ask[IO, AppContext]
       ): IO[Unit] = IO {
@@ -561,13 +561,13 @@ class HttpRoutesSpec
       proxyService,
       runtimeService,
       MockDiskServiceInterp,
-      MockKubernetesServiceInterp,
+      MockAppService,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig
     )
 
-  def fakeRoutes(kubernetesService: KubernetesService[IO]): HttpRoutes =
+  def fakeRoutes(kubernetesService: AppService[IO]): HttpRoutes =
     new HttpRoutes(
       swaggerConfig,
       statusService,

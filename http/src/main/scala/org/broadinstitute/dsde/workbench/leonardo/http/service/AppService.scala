@@ -6,7 +6,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppName}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
-trait KubernetesService[F[_]] {
+trait AppService[F[_]] {
   def batchNodepoolCreate(userInfo: UserInfo, googleProject: GoogleProject, req: BatchNodepoolCreateRequest)(
     implicit ev: Ask[F, AppContext]
   ): F[Unit]

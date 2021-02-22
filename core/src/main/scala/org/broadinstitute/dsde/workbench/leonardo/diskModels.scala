@@ -18,6 +18,7 @@ final case class PersistentDisk(id: DiskId,
                                 diskType: DiskType,
                                 blockSize: BlockSize,
                                 formattedBy: Option[FormattedBy],
+                                galaxyRestore: Option[GalaxyRestore],
                                 labels: LabelMap) {
   def projectNameString: String = s"${googleProject.value}/${name.value}"
 }
@@ -109,3 +110,7 @@ object FormattedBy extends Enum[FormattedBy] {
     override def asString: String = "CUSTOM"
   }
 }
+
+final case class PvcId(asString: String) extends AnyVal
+// information needed for restoring a galaxy app
+final case class GalaxyRestore(galaxyPvcId: PvcId, cvmfsPvcId: PvcId, lastUsedBy: AppId)

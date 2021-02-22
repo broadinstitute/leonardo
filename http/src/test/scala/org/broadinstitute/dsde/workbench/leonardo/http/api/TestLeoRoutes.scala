@@ -96,7 +96,7 @@ trait TestLeoRoutes {
                            blocker)
   val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
 
-  val leoKubernetesService: LeoKubernetesServiceInterp[IO] = new LeoKubernetesServiceInterp[IO](
+  val leoKubernetesService: LeoAppServiceInterp[IO] = new LeoAppServiceInterp[IO](
     whitelistAuthProvider,
     serviceAccountProvider,
     Config.leoKubernetesConfig,

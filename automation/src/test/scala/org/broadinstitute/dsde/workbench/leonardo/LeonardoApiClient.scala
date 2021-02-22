@@ -2,12 +2,12 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import java.util.UUID
 import java.util.concurrent.TimeoutException
-
 import cats.effect.{IO, Resource, Timer}
 import cats.syntax.all._
+import io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
-import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DiskName, MachineTypeName}
+import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, DiskName, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.ApiJsonDecoder._
 import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
@@ -43,7 +43,7 @@ object LeonardoApiClient {
   val client: Resource[IO, Client[IO]] = for {
     blockingEc <- ExecutionContexts.cachedThreadPool[IO]
     client <- blaze.BlazeClientBuilder[IO](blockingEc).resource
-  } yield Logger[IO](logHeaders = false, logBody = true)(client)
+  } yield Logger[IO](logHeaders = true, logBody = true)(client)
 
   val rootUri = Uri.unsafeFromString(LeonardoConfig.Leonardo.apiUrl)
   val defaultCreateDiskRequest = CreateDiskRequest(
@@ -230,6 +230,34 @@ object LeonardoApiClient {
               s"create runtime ${googleProject.value}/${runtimeName.asString}. Runtime is still in ${other}"
             )
           )
+      }
+    } yield res
+  }
+
+  def waitUntilAppRunning(googleProject: GoogleProject, appName: AppName, shouldError: Boolean = true)(
+    implicit timer: Timer[IO],
+    client: Client[IO],
+    authHeader: Authorization,
+    logger: StructuredLogger[IO]
+  ): IO[GetAppResponse] = {
+    val ioa = getApp(googleProject, appName)
+    implicit val doneCheckeable: DoneCheckable[GetAppResponse] = x =>
+      x.status == AppStatus.Running || x.status == AppStatus.Error
+    for {
+      res <- timer.sleep(80 seconds) >> streamUntilDoneOrTimeout(
+        ioa,
+        120,
+        10 seconds,
+        s"app ${googleProject.value}/${appName.value} did not finish app creation after 20 minutes."
+      )
+      _ <- res.status match {
+        case AppStatus.Error =>
+          if (shouldError)
+            IO.raiseError(
+              new RuntimeException(s"${googleProject.value}/${appName.value} errored due to ${res.errors}")
+            )
+          else logger.info(s"${googleProject.value}/${appName.value} errored due to ${res.errors}")
+        case _ => IO.unit
       }
     } yield res
   }
@@ -424,8 +452,19 @@ object LeonardoApiClient {
         }
     } yield r
 
-  def deleteApp(googleProject: GoogleProject, appName: AppName)(implicit client: Client[IO],
-                                                                authHeader: Authorization): IO[Unit] =
+  def createAppWithWait(
+    googleProject: GoogleProject,
+    appName: AppName,
+    createAppRequest: CreateAppRequest = defaultCreateAppRequest
+  )(implicit client: Client[IO], authHeader: Authorization, logger: StructuredLogger[IO], timer: Timer[IO]): IO[Unit] =
+    for {
+      _ <- createApp(googleProject, appName, createAppRequest)
+      _ <- waitUntilAppRunning(googleProject, appName, true)
+    } yield ()
+
+  def deleteApp(googleProject: GoogleProject,
+                appName: AppName,
+                deleteDisk: Boolean = true)(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
     for {
       traceIdHeader <- genTraceIdHeader()
       r <- client
@@ -433,7 +472,9 @@ object LeonardoApiClient {
           Request[IO](
             method = Method.DELETE,
             headers = Headers.of(authHeader, traceIdHeader),
-            uri = rootUri.withPath(s"/api/google/v1/apps/${googleProject.value}/${appName.value}")
+            uri = rootUri
+              .withPath(s"/api/google/v1/apps/${googleProject.value}/${appName.value}")
+              .withQueryParam("deleteDisk", deleteDisk)
           )
         )
         .use { resp =>
@@ -445,13 +486,13 @@ object LeonardoApiClient {
         }
     } yield r
 
-  def deleteAppWithWait(googleProject: GoogleProject, appName: AppName)(
+  def deleteAppWithWait(googleProject: GoogleProject, appName: AppName, deleteDisk: Boolean = true)(
     implicit timer: Timer[IO],
     client: Client[IO],
     authHeader: Authorization
   ): IO[Unit] =
     for {
-      _ <- deleteApp(googleProject, appName)
+      _ <- deleteApp(googleProject, appName, deleteDisk)
       ioa = getApp(googleProject, appName).attempt
       res <- timer.sleep(120 seconds) >> streamFUntilDone(ioa, 30, 30 seconds).compile.lastOrError
       _ <- if (res.isDone) IO.unit

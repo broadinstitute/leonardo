@@ -708,7 +708,7 @@ trait LeonardoTestUtils
   def noop[A](x: A): Unit = ()
 
   def randomAppName: AppName = AppName(s"automation-test-app-a${makeRandomId().toLowerCase}z")
-  def randomDiskName: DiskName = DiskName(s"automation-test-disk-a${makeRandomId().toLowerCase}z")
+  def randomDiskName(): DiskName = DiskName(s"automation-test-disk-a${makeRandomId().toLowerCase}z")
 
   def appDeleted(appName: AppName): DoneCheckable[List[ListAppResponse]] =
     x => x.filter(_.appName == appName).map(_.status).distinct == List(AppStatus.Deleted)

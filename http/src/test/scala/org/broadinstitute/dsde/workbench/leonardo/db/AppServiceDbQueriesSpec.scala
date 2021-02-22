@@ -12,7 +12,7 @@ import org.scalatest.flatspec.AnyFlatSpecLike
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
+class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
 
   it should "return None when there is no matching app" in isolatedDbTest {
     val cluster1 = makeKubeCluster(1).save()

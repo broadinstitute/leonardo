@@ -1,7 +1,8 @@
-package org.broadinstitute.dsde.workbench.leonardo.http.service
+package org.broadinstitute.dsde.workbench.leonardo
+package http
+package service
 
 import java.time.Instant
-
 import cats.effect.IO
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google2.DiskName
@@ -17,7 +18,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   persistentDiskQuery,
   _
 }
-import org.broadinstitute.dsde.workbench.leonardo.http.{DeleteAppRequest, PersistentDiskRequest}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterNodepoolAction.CreateNodepool
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   BatchNodepoolCreateMessage,
@@ -30,34 +30,29 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   LeoPubsubMessageType
 }
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AppName,
-  AppStatus,
-  AppType,
-  KubernetesClusterStatus,
-  LabelMap,
-  LeoLenses,
-  LeoPublisher,
-  LeonardoTestSuite,
-  NodepoolStatus,
-  NumNodes
-}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsp.ChartVersion
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
-final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
+final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
 
   //used when we care about queue state
   def makeInterp(queue: InspectableQueue[IO, LeoPubsubMessage]) =
-    new LeoKubernetesServiceInterp[IO](whitelistAuthProvider, serviceAccountProvider, leoKubernetesConfig, queue)
-  val kubeServiceInterp = new LeoKubernetesServiceInterp[IO](whitelistAuthProvider,
-                                                             serviceAccountProvider,
-                                                             leoKubernetesConfig,
-                                                             QueueFactory.makePublisherQueue())
+    new LeoAppServiceInterp[IO](whitelistAuthProvider, serviceAccountProvider, leoKubernetesConfig, queue)
+  val kubeServiceInterp = new LeoAppServiceInterp[IO](whitelistAuthProvider,
+                                                      serviceAccountProvider,
+                                                      leoKubernetesConfig,
+                                                      QueueFactory.makePublisherQueue())
+
+  it should "determine patch version bump correctly" in isolatedDbTest {
+    val first = ChartVersion("0.8.0")
+    val second = ChartVersion("0.8.2")
+    LeoAppServiceInterp.isPatchVersionDifference(first, second) shouldBe (true)
+  }
 
   it should "create an app and a new disk" in isolatedDbTest {
     val appName = AppName("app1")
@@ -168,12 +163,62 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     )
   }
 
-  it should "create an app with an existing disk" in isolatedDbTest {
-    val disk = makePersistentDisk(None).copy(googleProject = project).save().unsafeRunSync()
+  it should "not able to create an app with an existing non-used disk" in isolatedDbTest {
+    val disk = makePersistentDisk(None)
+      .copy(googleProject = project)
+      .save()
+      .unsafeRunSync()
 
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(disk.name, None, None, Map.empty)
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
+
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val kubeServiceInterp = makeInterp(publisherQueue)
+    val res = kubeServiceInterp.createApp(userInfo, project, appName, appReq).attempt.unsafeRunSync()
+
+    res.swap.toOption.get.getMessage shouldBe ("Disk is not formatted yet. Only disks previously used by galaxy app can be re-used to create a new galaxy app")
+  }
+
+  it should "error creating an app with an existing used disk when WORKSPACE_NAME is not specified" in isolatedDbTest {
+    val customEnvVariables = Map(WORKSPACE_NAME_KEY -> "fake_ws")
+    val cluster = makeKubeCluster(0).save()
+    val nodepool = makeNodepool(1, cluster.id).save()
+    val app = makeApp(1, nodepool.id, customEnvVariables).save()
+    val disk = makePersistentDisk(None,
+                                  formattedBy = Some(FormattedBy.Galaxy),
+                                  galaxyRestore = Some(GalaxyRestore(PvcId("pv-id"), PvcId("pv-id2"), app.id)))
+      .copy(googleProject = project)
+      .save()
+      .unsafeRunSync()
+
+    val appName = AppName("app1")
+    val createDiskConfig = PersistentDiskRequest(disk.name, None, None, Map.empty)
+    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig),
+                                       customEnvironmentVariables = Map(WORKSPACE_NAME_KEY -> "fake_ws2"))
+
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val kubeServiceInterp = makeInterp(publisherQueue)
+    val res = kubeServiceInterp.createApp(userInfo, project, appName, appReq).attempt.unsafeRunSync()
+    res.swap.toOption.get.getMessage shouldBe ("workspace name has to be the same as last used app in order to restore data from existing disk")
+  }
+
+  it should "create an app with an existing used disk" in isolatedDbTest {
+    val customEnvVariables = Map(WORKSPACE_NAME_KEY -> "fake_ws")
+    val cluster = makeKubeCluster(0).save()
+    val nodepool = makeNodepool(1, cluster.id).save()
+    val app = makeApp(1, nodepool.id, customEnvVariables).save()
+    val disk = makePersistentDisk(None,
+                                  galaxyRestore = Some(GalaxyRestore(PvcId("pv-id"), PvcId("pv-id2"), app.id)),
+                                  formattedBy = Some(FormattedBy.Galaxy))
+      .copy(googleProject = project)
+      .save()
+      .unsafeRunSync()
+
+    val appName = AppName("app1")
+    val createDiskConfig = PersistentDiskRequest(disk.name, None, None, Map.empty)
+    val appReq =
+      createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVariables)
 
     val publisherQueue = QueueFactory.makePublisherQueue()
     val kubeServiceInterp = makeInterp(publisherQueue)
@@ -191,6 +236,23 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     appResult.map(_.app.appName) shouldEqual Some(appName)
   }
 
+  it should "error creating an app with an existing disk if no restore info found" in isolatedDbTest {
+    val disk = makePersistentDisk(None, formattedBy = Some(FormattedBy.Galaxy))
+      .copy(googleProject = project)
+      .save()
+      .unsafeRunSync()
+
+    val appName = AppName("app1")
+    val createDiskConfig = PersistentDiskRequest(disk.name, None, None, Map.empty)
+    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
+
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val kubeServiceInterp = makeInterp(publisherQueue)
+    val res = kubeServiceInterp.createApp(userInfo, project, appName, appReq).attempt.unsafeRunSync()
+
+    res.swap.toOption.get.getMessage shouldBe ("Existing disk found, but no restore info found in DB")
+  }
+
   it should "error on creation of a galaxy app without a disk" in isolatedDbTest {
     val appName = AppName("app1")
     val appReq = createAppRequest.copy(diskConfig = None, appType = AppType.Galaxy)
@@ -201,7 +263,16 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
   }
 
   it should "error on creation if a disk is attached to another app" in isolatedDbTest {
-    val disk = makePersistentDisk(None).copy(googleProject = project).save().unsafeRunSync()
+    val customEnvVariables = Map(WORKSPACE_NAME_KEY -> "fake_ws")
+    val cluster = makeKubeCluster(0).save()
+    val nodepool = makeNodepool(1, cluster.id).save()
+    val app = makeApp(1, nodepool.id, customEnvVariables).save()
+    val disk = makePersistentDisk(None,
+                                  formattedBy = Some(FormattedBy.Galaxy),
+                                  galaxyRestore = Some(GalaxyRestore(PvcId("pv-id"), PvcId("pv-id2"), app.id)))
+      .copy(googleProject = project)
+      .save()
+      .unsafeRunSync()
     val appName1 = AppName("app1")
     val appName2 = AppName("app2")
 

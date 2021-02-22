@@ -28,6 +28,7 @@ import slick.dbio.DBIO
 package object http {
   val includeDeletedKey = "includeDeleted"
   val bucketPathMaxLength = 1024
+  val WORKSPACE_NAME_KEY = "WORKSPACE_NAME"
 
   implicit val errorReportSource = ErrorReportSource("leonardo")
   implicit def dbioToIO[A](dbio: DBIO[A]): DBIOOps[A] = new DBIOOps(dbio)

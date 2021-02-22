@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.{
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
-class MockKubernetesServiceInterp extends KubernetesService[IO] {
+class MockAppService extends AppService[IO] {
   override def createApp(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName, req: CreateAppRequest)(
     implicit as: Ask[IO, AppContext]
   ): IO[Unit] =
@@ -49,4 +49,4 @@ class MockKubernetesServiceInterp extends KubernetesService[IO] {
   ): IO[Unit] = IO.unit
 }
 
-object MockKubernetesServiceInterp extends MockKubernetesServiceInterp
+object MockAppService extends MockAppService

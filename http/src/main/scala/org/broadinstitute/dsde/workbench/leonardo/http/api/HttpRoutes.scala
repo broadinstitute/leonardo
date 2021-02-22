@@ -15,8 +15,8 @@ import com.typesafe.scalalogging.LazyLogging
 import io.circe.Encoder
 import org.broadinstitute.dsde.workbench.leonardo.config.{RefererConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  AppService,
   DiskService,
-  KubernetesService,
   ProxyService,
   RuntimeService,
   StatusService
@@ -36,7 +36,7 @@ class HttpRoutes(
   proxyService: ProxyService,
   runtimeService: RuntimeService[IO],
   diskService: DiskService[IO],
-  kubernetesService: KubernetesService[IO],
+  kubernetesService: AppService[IO],
   userInfoDirectives: UserInfoDirectives,
   contentSecurityPolicy: String,
   refererConfig: RefererConfig

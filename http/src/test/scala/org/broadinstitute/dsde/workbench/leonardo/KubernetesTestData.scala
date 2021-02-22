@@ -37,7 +37,7 @@ object KubernetesTestData {
   val galaxyApp = AppType.Galaxy
 
   val galaxyChartName = ChartName("galaxy/galaxykubeman")
-  val galaxyChartVersion = ChartVersion("0.7.3")
+  val galaxyChartVersion = ChartVersion("0.8.0")
   val galaxyChart = Chart(galaxyChartName, galaxyChartVersion)
 
   val galaxyReleasePrefix = "gxy-release"
@@ -126,7 +126,9 @@ object KubernetesTestData {
     Namespace(NamespaceId(-1), name)
   }
 
-  def makeApp(index: Int, nodepoolId: NodepoolLeoId): App = {
+  def makeApp(index: Int,
+              nodepoolId: NodepoolLeoId,
+              customEnvironmentVariables: Map[String, String] = Map.empty): App = {
     val name = AppName("app" + index)
     val namespace = makeNamespace(index, "app")
     App(
@@ -148,7 +150,7 @@ object KubernetesTestData {
         Option.empty
       ),
       List.empty,
-      Map.empty,
+      customEnvironmentVariables,
       None,
       List.empty
     )

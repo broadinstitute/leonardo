@@ -22,7 +22,8 @@ import org.broadinstitute.dsde.workbench.google2.{
   GcsBlobName,
   GetMetadataResponse,
   GoogleSubscriber,
-  KubernetesModels
+  KubernetesModels,
+  PvName
 }
 import org.broadinstitute.dsde.workbench.leonardo.model.{
   LeoAuthProvider,
@@ -191,6 +192,9 @@ class MockKubernetesService(podStatus: PodStatus = PodStatus.Running, appRelease
         List(nfsPvc, cvmfsPvc)
       )
     }
+
+  override def deletePv(clusterId: KubernetesClusterId, pv: PvName)(implicit ev: Ask[IO, TraceId]): IO[Unit] =
+    IO.unit
 }
 
 class MockGKEService extends GKEAlgebra[IO] {

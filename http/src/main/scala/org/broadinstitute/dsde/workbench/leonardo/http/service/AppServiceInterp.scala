@@ -4,7 +4,6 @@ package service
 
 import java.time.Instant
 import java.util.UUID
-
 import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
 import cats.data.NonEmptyList
@@ -20,19 +19,22 @@ import org.broadinstitute.dsde.workbench.leonardo.AppType.{Custom, Galaxy}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoKubernetesServiceInterp.LeoKubernetesConfig
+import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.{
+  isPatchVersionDifference,
+  LeoKubernetesConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProviderConfig, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction, LeoPubsubMessage}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.KubernetesService
+import org.broadinstitute.dsde.workbench.leonardo.http.service.AppService
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
-import org.broadinstitute.dsp.Release
+import org.broadinstitute.dsp.{ChartVersion, Release}
 
 import scala.concurrent.ExecutionContext
 
-final class LeoKubernetesServiceInterp[F[_]: Parallel](
+final class LeoAppServiceInterp[F[_]: Parallel](
   protected val authProvider: LeoAuthProvider[F],
   protected val serviceAccountProvider: ServiceAccountProvider[F],
   protected val leoKubernetesConfig: LeoKubernetesConfig,
@@ -42,7 +44,7 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
   log: StructuredLogger[F],
   dbReference: DbReference[F],
   ec: ExecutionContext
-) extends KubernetesService[F] {
+) extends AppService[F] {
 
   override def createApp(
     userInfo: UserInfo,
@@ -124,6 +126,50 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
         )
       )
 
+      lastUsedApp <- diskResultOpt.flatTraverse { diskResult =>
+        if (diskResult.creationNeeded) F.pure(none[LastUsedApp])
+        else {
+          (diskResult.disk.formattedBy, diskResult.disk.galaxyRestore) match {
+            case (Some(FormattedBy.Galaxy), Some(galaxyRestore)) =>
+              for {
+                lastUsedOpt <- appQuery.getLastUsedApp(galaxyRestore.lastUsedBy, Some(ctx.traceId)).transaction
+                lastUsed <- F.fromOption(
+                  lastUsedOpt,
+                  new LeoException(s"last used app(${galaxyRestore.lastUsedBy}) not found", traceId = Some(ctx.traceId))
+                )
+                _ <- req.customEnvironmentVariables.get(WORKSPACE_NAME_KEY).traverse { s =>
+                  if (lastUsed.workspace.asString == s)
+                    F.unit
+                  else
+                    F.raiseError[Unit](
+                      BadRequestException(
+                        s"workspace name has to be the same as last used app in order to restore data from existing disk",
+                        Some(ctx.traceId)
+                      )
+                    )
+                }
+              } yield lastUsed.some
+            case (Some(FormattedBy.Galaxy), None) =>
+              F.raiseError[Option[LastUsedApp]](
+                new LeoException("Existing disk found, but no restore info found in DB", traceId = Some(ctx.traceId))
+              )
+            case (Some(FormattedBy.GCE), _) | (Some(FormattedBy.Custom), _) =>
+              F.raiseError[Option[LastUsedApp]](
+                new LeoException(
+                  s"Disk is formatted by ${diskResult.disk.formattedBy.get} already, cannot be used for galaxy app",
+                  traceId = Some(ctx.traceId)
+                )
+              )
+            case (None, _) =>
+              F.raiseError[Option[LastUsedApp]](
+                new LeoException(
+                  "Disk is not formatted yet. Only disks previously used by galaxy app can be re-used to create a new galaxy app",
+                  traceId = Some(ctx.traceId)
+                )
+              )
+          }
+        }
+      }
       saveApp <- F.fromEither(
         getSavableApp(googleProject,
                       appName,
@@ -131,6 +177,7 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
                       samResourceId,
                       req,
                       diskResultOpt.map(_.disk),
+                      lastUsedApp,
                       petSA,
                       nodepool.id,
                       ctx)
@@ -472,6 +519,7 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
                                      samResourceId: AppSamResourceId,
                                      req: CreateAppRequest,
                                      diskOpt: Option[PersistentDisk],
+                                     lastUsedApp: Option[LastUsedApp],
                                      googleServiceAccount: WorkbenchEmail,
                                      nodepoolId: NodepoolLeoId,
                                      ctx: AppContext): Either[Throwable, SaveApp] = {
@@ -510,14 +558,31 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
       //
       // There are DB constraints to handle potential name collisions.
       uid = s"${RandomStringUtils.randomAlphabetic(1)}${RandomStringUtils.randomAlphanumeric(5)}".toLowerCase
-      namespaceName <- KubernetesName.withValidation(
-        s"${uid}-${galaxyConfig.namespaceNameSuffix}",
-        NamespaceName.apply
-      )
-      release <- KubernetesName.withValidation(
-        s"${uid}-${galaxyConfig.releaseNameSuffix}",
-        Release.apply
-      )
+      namespaceId = lastUsedApp.fold(
+        NamespaceId(-1)
+      )(app => app.namespaceId)
+      namespaceName <- lastUsedApp.fold(
+        KubernetesName.withValidation(
+          s"${uid}-${galaxyConfig.namespaceNameSuffix}",
+          NamespaceName.apply
+        )
+      )(app => app.namespaceName.asRight[Throwable])
+
+      chart = lastUsedApp
+        .map { lastUsed =>
+          // if there's a patch version bump, then we use the later version defined in leo config; otherwise, we use lastUsed chart definition
+          if (lastUsed.chart.name == galaxyConfig.chartName && isPatchVersionDifference(lastUsed.chart.version,
+                                                                                        galaxyConfig.chartVersion))
+            galaxyConfig.chart
+          else lastUsed.chart
+        }
+        .getOrElse(galaxyConfig.chart)
+      release <- lastUsedApp.fold(
+        KubernetesName.withValidation(
+          s"${uid}-${galaxyConfig.releaseNameSuffix}",
+          Release.apply
+        )
+      )(app => app.release.asRight[Throwable])
     } yield SaveApp(
       App(
         AppId(-1),
@@ -525,7 +590,7 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
         req.appType,
         appName,
         AppStatus.Precreating,
-        Chart(galaxyConfig.chartName, galaxyConfig.chartVersion),
+        chart,
         release,
         samResourceId,
         googleServiceAccount,
@@ -533,7 +598,7 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
         labels,
         AppResources(
           Namespace(
-            NamespaceId(-1),
+            namespaceId,
             namespaceName
           ),
           Some(disk),
@@ -556,13 +621,19 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
 
 }
 
-object LeoKubernetesServiceInterp {
+object LeoAppServiceInterp {
   case class LeoKubernetesConfig(serviceAccountConfig: ServiceAccountProviderConfig,
                                  clusterConfig: KubernetesClusterConfig,
                                  nodepoolConfig: NodepoolConfig,
                                  ingressConfig: KubernetesIngressConfig,
                                  galaxyAppConfig: GalaxyAppConfig,
                                  diskConfig: PersistentDiskConfig)
+
+  private[http] def isPatchVersionDifference(a: ChartVersion, b: ChartVersion): Boolean = {
+    val aSplited = a.asString.split("\\.")
+    val bSplited = b.asString.split("\\.")
+    aSplited(0) == bSplited(0) && aSplited(1) == bSplited(1)
+  }
 }
 case class AppNotFoundException(googleProject: GoogleProject, appName: AppName, traceId: TraceId)
     extends LeoException(

@@ -311,7 +311,9 @@ object CommonTestData {
     )
     .build()
 
-  def makePersistentDisk(diskName: Option[DiskName] = None, formattedBy: Option[FormattedBy] = None): PersistentDisk =
+  def makePersistentDisk(diskName: Option[DiskName] = None,
+                         formattedBy: Option[FormattedBy] = None,
+                         galaxyRestore: Option[GalaxyRestore] = None): PersistentDisk =
     PersistentDisk(
       DiskId(-1),
       project,
@@ -326,6 +328,7 @@ object CommonTestData {
       diskType,
       blockSize,
       formattedBy,
+      galaxyRestore,
       Map.empty
     )
 

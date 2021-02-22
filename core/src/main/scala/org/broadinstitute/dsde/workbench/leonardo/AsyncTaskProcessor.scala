@@ -1,12 +1,11 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import java.time.Instant
-
 import cats.effect.{Concurrent, Timer}
 import cats.syntax.all._
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
-import io.chrisdavenport.log4cats.Logger
+import io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor._
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
@@ -14,7 +13,7 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import scala.concurrent.duration._
 
 final class AsyncTaskProcessor[F[_]: Timer](config: AsyncTaskProcessor.Config, asyncTasks: InspectableQueue[F, Task[F]])(
-  implicit logger: Logger[F],
+  implicit logger: StructuredLogger[F],
   F: Concurrent[F],
   metrics: OpenTelemetryMetrics[F]
 ) {
@@ -31,8 +30,8 @@ final class AsyncTaskProcessor[F[_]: Timer](config: AsyncTaskProcessor.Config, a
       now <- nowInstant[F]
       latency = (now.toEpochMilli - task.enqueuedTime.toEpochMilli).millis
       _ <- recordLatency(latency)
-      _ <- logger.info(
-        s"Executing task with traceId ${task.traceId.asString} with latency of ${latency.toSeconds} seconds"
+      _ <- logger.info(Map("traceId" -> task.traceId.asString))(
+        s"Executing task with latency of ${latency.toSeconds} seconds"
       )
       _ <- task.op.handleErrorWith {
         case err =>
@@ -70,7 +69,7 @@ object AsyncTaskProcessor {
   def apply[F[_]: Timer](
     config: Config,
     asyncTasks: InspectableQueue[F, Task[F]]
-  )(implicit logger: Logger[F], F: Concurrent[F], metrics: OpenTelemetryMetrics[F]): AsyncTaskProcessor[F] =
+  )(implicit logger: StructuredLogger[F], F: Concurrent[F], metrics: OpenTelemetryMetrics[F]): AsyncTaskProcessor[F] =
     new AsyncTaskProcessor(config, asyncTasks)
 
   final case class Task[F[_]](traceId: TraceId,

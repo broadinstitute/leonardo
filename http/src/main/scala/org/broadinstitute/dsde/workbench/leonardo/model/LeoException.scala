@@ -21,6 +21,9 @@ class LeoException(val message: String = null,
     ErrorReport(Option(getMessage).getOrElse(""), Some(statusCode), Seq(), Seq(), Some(this.getClass), traceId)
 }
 
+final case class BadRequestException(msg: String, traceId: Option[TraceId])
+    extends LeoException(msg, StatusCodes.BadRequest, traceId = traceId)
+
 final case class AuthenticationError(email: Option[WorkbenchEmail] = None)
     extends LeoException(s"${email.map(e => s"'${e.value}'").getOrElse("Your account")} is not authenticated",
                          StatusCodes.Unauthorized,

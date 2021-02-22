@@ -629,7 +629,7 @@ class LeoPubsubMessageSubscriberSpec
       getCluster.status shouldBe KubernetesClusterStatus.Running
       getCluster.nodepools.size shouldBe 2
       getCluster.nodepools.filter(_.isDefault).head.status shouldBe NodepoolStatus.Running
-      getApp.app.errors shouldBe List()
+      getApp.app.errors shouldBe List.empty
       getApp.app.status shouldBe AppStatus.Running
       getApp.app.appResources.kubernetesServiceAccountName shouldBe Some(
         ServiceAccountName("gxy-ksa")
@@ -645,7 +645,7 @@ class LeoPubsubMessageSubscriberSpec
       )
       getDisk.status shouldBe DiskStatus.Ready
       galaxyRestore shouldBe Some(
-        GalaxyDiskRestore(PvcId(s"nfs-pvc-id1"), PvcId("cvmfs-pvc-id1"), getApp.app.id)
+        GalaxyRestore(PvcId(s"nfs-pvc-id1"), PvcId("cvmfs-pvc-id1"), getApp.app.id)
       )
     }
 
@@ -1001,33 +1001,6 @@ class LeoPubsubMessageSubscriberSpec
     verify(mockAckConsumer, times(1)).ack()
   }
 
-  it should "delete app without disk" in isolatedDbTest {
-    val savedCluster1 = makeKubeCluster(1).save()
-    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
-    val savedApp1 = makeApp(1, savedNodepool1.id).save()
-
-    val assertions = for {
-      getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.googleProject, savedApp1.id).transaction
-      getApp = getAppOpt.get
-    } yield {
-      getApp.app.errors.size shouldBe 0
-      getApp.app.status shouldBe AppStatus.Deleted
-      getApp.nodepool.status shouldBe savedNodepool1.status
-    }
-
-    val res = for {
-      tr <- traceId.ask[TraceId]
-      msg = DeleteAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, None, Some(tr))
-      queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
-      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-      _ <- leoSubscriber.handleDeleteAppMessage(msg)
-      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
-    } yield ()
-
-    res.unsafeRunSync()
-  }
-
   //delete app and not delete disk when specified
   //update app status and disk id
   it should "delete app and not delete disk when specified" in isolatedDbTest {
@@ -1061,7 +1034,7 @@ class LeoPubsubMessageSubscriberSpec
       tr <- traceId.ask[TraceId]
       msg = DeleteAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, None, Some(tr))
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleDeleteAppMessage(msg)
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
@@ -1361,7 +1334,8 @@ class LeoPubsubMessageSubscriberSpec
       override def installChart(release: Release,
                                 chartName: ChartName,
                                 chartVersion: ChartVersion,
-                                values: Values): Kleisli[IO, AuthContext, Unit] =
+                                values: Values,
+                                createNamespace: Boolean): Kleisli[IO, AuthContext, Unit] =
         if (chartName == Config.gkeInterpConfig.terraAppSetupChartConfig.chartName)
           Kleisli.liftF(IO.raiseError(new Exception("this is an intentional test exception")))
         else Kleisli.liftF(IO.unit)
@@ -1464,7 +1438,8 @@ class LeoPubsubMessageSubscriberSpec
       override def installChart(release: Release,
                                 chartName: ChartName,
                                 chartVersion: ChartVersion,
-                                values: Values): Kleisli[IO, AuthContext, Unit] =
+                                values: Values,
+                                createNamespace: Boolean): Kleisli[IO, AuthContext, Unit] =
         if (chartName == Config.gkeInterpConfig.terraAppSetupChartConfig.chartName)
           Kleisli.liftF(IO.raiseError(new Exception("this is an intentional test exception")))
         else Kleisli.liftF(IO.unit)

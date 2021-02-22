@@ -53,7 +53,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, StandardUserInfoDirectives}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{LeoKubernetesServiceInterp, DiskServiceInterp, _}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{LeoAppServiceInterp, DiskServiceInterp, _}
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessageSubscriber.nonLeoMessageDecoder
@@ -167,11 +167,11 @@ object Boot extends IOApp {
         appDependencies.publisherQueue
       )
 
-      val leoKubernetesService: LeoKubernetesServiceInterp[IO] =
-        new LeoKubernetesServiceInterp(appDependencies.authProvider,
-                                       appDependencies.serviceAccountProvider,
-                                       leoKubernetesConfig,
-                                       appDependencies.publisherQueue)
+      val leoKubernetesService: LeoAppServiceInterp[IO] =
+        new LeoAppServiceInterp(appDependencies.authProvider,
+                                appDependencies.serviceAccountProvider,
+                                leoKubernetesConfig,
+                                appDependencies.publisherQueue)
 
       val httpRoutes = new HttpRoutes(
         swaggerConfig,
