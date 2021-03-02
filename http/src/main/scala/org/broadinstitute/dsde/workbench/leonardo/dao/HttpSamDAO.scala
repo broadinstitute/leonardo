@@ -14,7 +14,7 @@ import _root_.io.circe.syntax._
 import akka.http.scaladsl.model.StatusCode._
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import cats.effect.implicits._
-import cats.effect.{Blocker, ContextShift, Effect, Resource, Timer}
+import cats.effect.{ContextShift, Blocker, Resource, Timer, Effect}
 import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.api.services.plus.PlusScopes
@@ -24,18 +24,19 @@ import com.google.common.cache.{CacheBuilder, CacheLoader, LoadingCache}
 import org.broadinstitute.dsde.workbench.google2.credentialResource
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
+import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.ProjectSamResource
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.util.CacheMetrics
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, TraceId}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.health.Subsystems.Subsystem
-import org.broadinstitute.dsde.workbench.util.health.{StatusCheckResponse, SubsystemStatus, Subsystems}
+import org.broadinstitute.dsde.workbench.util.health.{StatusCheckResponse, Subsystems, SubsystemStatus}
 import org.http4s._
 import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
-import org.http4s.headers.{`Content-Type`, Authorization}
+import org.http4s.headers.{Authorization, `Content-Type`}
 
 import scala.jdk.CollectionConverters._
 import scala.concurrent.duration._
@@ -154,7 +155,8 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
             method = Method.POST,
             uri = config.samUri
               .withPath(s"/api/resources/v1/${sr.resourceType.asString}/${sr.resourceIdAsString(resource)}"),
-            headers = Headers.of(authHeader)
+            headers = Headers.of(authHeader),
+            body =
           )
         )
         .use { resp =>
@@ -368,6 +370,8 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
     } yield resp.map(_.userSubjectId)
 }
 
+//TODO: why isnt this in samModels
+
 object HttpSamDAO {
   def apply[F[_]: Effect](
     httpClient: Client[F],
@@ -456,6 +460,7 @@ final case class HttpSamDaoConfig(samUri: Uri,
 
 final case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)
 
+final case class CreateResourceRequest(parent: ProjectSamResource)
 final case class GetGoogleSubjectIdResponse(userSubjectId: UserSubjectId)
 final case object NotFoundException extends NoStackTrace
 final case class AuthProviderException(traceId: TraceId, msg: String, code: StatusCode)

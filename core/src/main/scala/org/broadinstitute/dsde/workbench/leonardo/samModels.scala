@@ -14,7 +14,7 @@ sealed trait SamResourceType extends Product with Serializable {
 }
 object SamResourceType {
   final case object Project extends SamResourceType {
-    val asString = "billing-project"
+    val asString = "google-project" //TODO: verify, is this correct?
   }
   final case object Runtime extends SamResourceType {
     val asString = "notebook-cluster"
