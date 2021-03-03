@@ -167,6 +167,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
         }
     } yield ()
 
+  //TODO: confirm this is the correct method for apps
   def createResourceWithManagerPolicy[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit sr: SamResource[R],
     encoder: Encoder[R],
@@ -188,7 +189,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
         s"${traceId} | creating ${sr.resourceType.asString} resource in sam for ${googleProject}/${sr.resourceIdAsString(resource)}"
       )
       _ <- metrics.incrementCounter(s"sam/createResource/${sr.resourceType.asString}")
-      projectOwnerEmail <- getProjectOwnerPolicyEmail(authHeader, googleProject)
+      projectOwnerEmail <- getProjectOwnerPolicyEmail(authHeader, googleProject) //TODO: Remove
       policies = Map(
         SamPolicyName.Creator -> SamPolicyData(List(creatorEmail), List(SamRole.Creator)),
         SamPolicyName.Manager -> SamPolicyData(List(projectOwnerEmail.email), List(SamRole.Manager))
@@ -479,7 +480,7 @@ final case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: G
  **/
  final case class CreateResourceRequest(parent: ProjectSamResource)
  final case class GetGoogleSubjectIdResponse(userSubjectId: UserSubjectId)
- *final case object NotFoundException extends NoStackTrace
- *final case class AuthProviderException(traceId: TraceId, msg: String, code: StatusCode)
- *extends LeoException(message = s"AuthProvider error: $msg", statusCode = code, traceId = Some(traceId))
- *with NoStackTrace
+ final case object NotFoundException extends NoStackTrace
+ final case class AuthProviderException(traceId: TraceId, msg: String, code: StatusCode)
+ extends LeoException(message = s"AuthProvider error: $msg", statusCode = code, traceId = Some(traceId))
+ with NoStackTrace
