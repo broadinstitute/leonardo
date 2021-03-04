@@ -184,7 +184,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       )
       authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
       _ <- logger.info(
-        s"${traceId} | creating ${sr.resourceType.asString} resource in sam for ${googleProject}/${sr.resourceIdAsString(resource)}"
+        s"${traceId} | creating ${sr.resourceType.asString} resource in sam v2 for ${googleProject}/${sr.resourceIdAsString(resource)}"
       )
       _ <- metrics.incrementCounter(s"sam/createResource/${sr.resourceType.asString}")
       policies = Map[SamPolicyName, SamPolicyData](
