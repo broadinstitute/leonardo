@@ -24,7 +24,6 @@ import com.google.common.cache.{CacheBuilder, CacheLoader, LoadingCache}
 import org.broadinstitute.dsde.workbench.google2.credentialResource
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
-import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.ProjectSamResource
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.util.CacheMetrics
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
