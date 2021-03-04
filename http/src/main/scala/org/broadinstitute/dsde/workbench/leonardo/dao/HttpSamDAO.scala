@@ -368,8 +368,6 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
     } yield resp.map(_.userSubjectId)
 }
 
-//TODO: why isnt this in samModels
-
 object HttpSamDAO {
   def apply[F[_]: Effect](
     httpClient: Client[F],
