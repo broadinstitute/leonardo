@@ -182,7 +182,7 @@ class SamAuthProvider[F[_]: Effect: Logger: Timer: OpenTelemetryMetrics](samDao:
     googleProject: GoogleProject
   )(implicit sr: SamResource[R], encoder: Encoder[R], ev: Ask[F, TraceId]): F[Unit] =
     // At the time this comment was written, the else is only executed for apps
-    // TODO: consider using v2 for all existing entities [ticket here] if this works out for apps
+    // TODO: consider using v2 for all existing entities if this works out for apps https://broadworkbench.atlassian.net/browse/IA-2569
     if (sr.resourceType != SamResourceType.App)
       samDao.createResource(samResource, creatorEmail, googleProject)
     else

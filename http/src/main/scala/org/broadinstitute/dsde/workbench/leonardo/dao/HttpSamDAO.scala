@@ -470,24 +470,6 @@ final case class HttpSamDaoConfig(samUri: Uri,
 final case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)
 final case class SerializableSamResource(resourceTypeName: SamResourceType, resourceId: SamResourceId)
 
-/** notes, should be deleted before merge
- * working curl:
- * {
- * "resourceId": "k8sApp",
- * "policies":
- * { "creator":
- * {"memberEmails": ["$USER"],
- * "actions": [],
- * "roles": ["creator"],
- * "descendantPermissions": []
- * }
- * },
- * "authDomain": [],
- * "returnResource": false,
- * "parent": {"resourceTypeName": "google-project","resourceId": "googleProject"}
- * }
- **/
-final case class CreateResourceRequest(parent: ProjectSamResource)
 final case class GetGoogleSubjectIdResponse(userSubjectId: UserSubjectId)
 final case object NotFoundException extends NoStackTrace
 final case class AuthProviderException(traceId: TraceId, msg: String, code: StatusCode)
