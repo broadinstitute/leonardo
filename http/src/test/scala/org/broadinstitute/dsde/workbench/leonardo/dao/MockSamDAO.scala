@@ -130,9 +130,7 @@ class MockSamDAO extends SamDAO[IO] {
     }
   }
 
-  override def createResourceWithManagerPolicy[R](resource: R,
-                                                  creatorEmail: WorkbenchEmail,
-                                                  googleProject: GoogleProject)(
+  override def createResourceV2[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit sr: SamResource[R],
     encoder: Encoder[R],
     ev: Ask[IO, TraceId]

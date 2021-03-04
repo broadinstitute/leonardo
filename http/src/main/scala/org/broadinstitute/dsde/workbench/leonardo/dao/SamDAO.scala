@@ -40,7 +40,7 @@ trait SamDAO[F[_]] {
     ev: Ask[F, TraceId]
   ): F[Unit]
 
-  def createResourceWithManagerPolicy[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
+  def createResourceV2[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit sr: SamResource[R],
     encoder: Encoder[R],
     ev: Ask[F, TraceId]

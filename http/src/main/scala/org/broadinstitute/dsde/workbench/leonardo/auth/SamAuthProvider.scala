@@ -181,10 +181,12 @@ class SamAuthProvider[F[_]: Effect: Logger: Timer: OpenTelemetryMetrics](samDao:
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject
   )(implicit sr: SamResource[R], encoder: Encoder[R], ev: Ask[F, TraceId]): F[Unit] =
-    if (sr.policyNames == Set(SamPolicyName.Creator))
+    // At the time this comment was written, the else is only executed for apps
+    // TODO: consider using v2 for all existing entities [ticket here] if this works out for apps
+    if (sr.resourceType != SamResourceType.App)
       samDao.createResource(samResource, creatorEmail, googleProject)
     else
-      samDao.createResourceWithManagerPolicy(samResource, creatorEmail, googleProject)
+      samDao.createResourceV2(samResource, creatorEmail, googleProject)
 
   override def notifyResourceDeleted[R](
     samResource: R,

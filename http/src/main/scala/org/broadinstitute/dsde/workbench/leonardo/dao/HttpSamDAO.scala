@@ -14,7 +14,7 @@ import _root_.io.circe.syntax._
 import akka.http.scaladsl.model.StatusCode._
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import cats.effect.implicits._
-import cats.effect.{ContextShift, Blocker, Resource, Timer, Effect}
+import cats.effect.{Blocker, ContextShift, Effect, Resource, Timer}
 import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.api.services.plus.PlusScopes
@@ -28,15 +28,15 @@ import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.ProjectSamRe
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.util.CacheMetrics
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, TraceId}
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.health.Subsystems.Subsystem
-import org.broadinstitute.dsde.workbench.util.health.{StatusCheckResponse, Subsystems, SubsystemStatus}
+import org.broadinstitute.dsde.workbench.util.health.{StatusCheckResponse, SubsystemStatus, Subsystems}
 import org.http4s._
 import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
-import org.http4s.headers.{Authorization, `Content-Type`}
+import org.http4s.headers.{`Content-Type`, Authorization}
 
 import scala.jdk.CollectionConverters._
 import scala.concurrent.duration._
@@ -155,8 +155,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
             method = Method.POST,
             uri = config.samUri
               .withPath(s"/api/resources/v1/${sr.resourceType.asString}/${sr.resourceIdAsString(resource)}"),
-            headers = Headers.of(authHeader),
-            body =
+            headers = Headers.of(authHeader)
           )
         )
         .use { resp =>
@@ -167,8 +166,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
         }
     } yield ()
 
-  //TODO: confirm this is the correct method for apps
-  def createResourceWithManagerPolicy[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
+  def createResourceV2[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit sr: SamResource[R],
     encoder: Encoder[R],
     ev: Ask[F, TraceId]
@@ -189,19 +187,18 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
         s"${traceId} | creating ${sr.resourceType.asString} resource in sam for ${googleProject}/${sr.resourceIdAsString(resource)}"
       )
       _ <- metrics.incrementCounter(s"sam/createResource/${sr.resourceType.asString}")
-      projectOwnerEmail <- getProjectOwnerPolicyEmail(authHeader, googleProject) //TODO: Remove
-      policies = Map(
-        SamPolicyName.Creator -> SamPolicyData(List(creatorEmail), List(SamRole.Creator)),
-        SamPolicyName.Manager -> SamPolicyData(List(projectOwnerEmail.email), List(SamRole.Manager))
+      policies = Map[SamPolicyName, SamPolicyData](
+        SamPolicyName.Creator -> SamPolicyData(List(creatorEmail), List(SamRole.Creator))
       )
+      parent = SerializableSamResource(SamResourceType.Project, ProjectSamResourceId(googleProject))
       _ <- httpClient
         .run(
           Request[F](
             method = Method.POST,
             uri = config.samUri
-              .withPath(s"/api/resources/v1/${sr.resourceType.asString}"),
+              .withPath(s"/api/resources/v2/${sr.resourceType.asString}"),
             headers = Headers.of(authHeader, `Content-Type`(MediaType.application.json)),
-            body = Stream.emits(CreateSamResourceRequest(resource, policies).asJson.noSpaces.getBytes)
+            body = Stream.emits(CreateSamResourceRequest(resource, policies, parent).asJson.noSpaces.getBytes)
           )
         )
         .use { resp =>
@@ -394,8 +391,15 @@ object HttpSamDAO {
   implicit val samPolicyNameKeyEncoder: KeyEncoder[SamPolicyName] = new KeyEncoder[SamPolicyName] {
     override def apply(p: SamPolicyName): String = p.toString
   }
+  implicit val samResourceTypeEncooder: Encoder[SamResourceType] = Encoder.encodeString.contramap(_.asString)
+  implicit val samResourceIdEncooder: Encoder[SamResourceId] = Encoder.encodeString.contramap(_.resourceId)
+
+  implicit val samResourceEncoder: Encoder[SerializableSamResource] =
+    Encoder.forProduct2("resourceTypeName", "resourceId")(x => (x.resourceTypeName, x.resourceId))
   implicit def createSamResourceRequestEncoder[R: Encoder]: Encoder[CreateSamResourceRequest[R]] =
-    Encoder.forProduct3("resourceId", "policies", "authDomain")(x => (x.samResourceId, x.policies, List.empty[String]))
+    Encoder.forProduct5("resourceId", "policies", "authDomain", "returnResource", "parent")(x =>
+      (x.samResourceId, x.policies, List.empty[String], x.returnResource, x.parent)
+    )
 
   implicit val samPolicyNameDecoder: Decoder[SamPolicyName] =
     Decoder.decodeString.map(s => SamPolicyName.stringToSamPolicyName.getOrElse(s, SamPolicyName.Other(s)))
@@ -450,7 +454,11 @@ object HttpSamDAO {
     Decoder.forProduct1("userSubjectId")(GetGoogleSubjectIdResponse.apply)
 }
 
-final case class CreateSamResourceRequest[R](samResourceId: R, policies: Map[SamPolicyName, SamPolicyData])
+final case class CreateSamResourceRequest[R](samResourceId: R,
+                                             policies: Map[SamPolicyName, SamPolicyData],
+                                             parent: SerializableSamResource,
+                                             authDomain: List[String] = List.empty,
+                                             returnResource: Boolean = false)
 final case class SyncStatusResponse(lastSyncDate: String, email: SamPolicyEmail)
 final case class ListResourceResponse[R](samResourceId: R, samPolicyName: SamPolicyName)
 final case class HttpSamDaoConfig(samUri: Uri,
@@ -460,6 +468,7 @@ final case class HttpSamDaoConfig(samUri: Uri,
                                   serviceAccountProviderConfig: ServiceAccountProviderConfig)
 
 final case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)
+final case class SerializableSamResource(resourceTypeName: SamResourceType, resourceId: SamResourceId)
 
 /** notes, should be deleted before merge
  * working curl:
@@ -478,9 +487,9 @@ final case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: G
  * "parent": {"resourceTypeName": "google-project","resourceId": "googleProject"}
  * }
  **/
- final case class CreateResourceRequest(parent: ProjectSamResource)
- final case class GetGoogleSubjectIdResponse(userSubjectId: UserSubjectId)
- final case object NotFoundException extends NoStackTrace
- final case class AuthProviderException(traceId: TraceId, msg: String, code: StatusCode)
- extends LeoException(message = s"AuthProvider error: $msg", statusCode = code, traceId = Some(traceId))
- with NoStackTrace
+final case class CreateResourceRequest(parent: ProjectSamResource)
+final case class GetGoogleSubjectIdResponse(userSubjectId: UserSubjectId)
+final case object NotFoundException extends NoStackTrace
+final case class AuthProviderException(traceId: TraceId, msg: String, code: StatusCode)
+    extends LeoException(message = s"AuthProvider error: $msg", statusCode = code, traceId = Some(traceId))
+    with NoStackTrace
