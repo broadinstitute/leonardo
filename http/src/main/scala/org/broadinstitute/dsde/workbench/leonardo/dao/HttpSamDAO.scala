@@ -324,22 +324,6 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       _ <- metrics.incrementCounter("sam/errorResponse")
     } yield AuthProviderException(traceId, body, response.status.code)
 
-  private def getProjectOwnerPolicyEmail(authorization: Authorization, googleProject: GoogleProject)(
-    implicit ev: Ask[F, TraceId]
-  ): F[SamPolicyEmail] =
-    for {
-      _ <- metrics.incrementCounter("sam/getProjectOwnerPolicyEmail")
-      resp <- httpClient.expectOr[SyncStatusResponse](
-        Request[F](
-          method = Method.GET,
-          uri = config.samUri.withPath(
-            s"/api/google/v1/resource/${SamResourceType.Project.asString}/${googleProject.value}/${SamPolicyName.Owner.toString}/sync"
-          ),
-          headers = Headers.of(authorization)
-        )
-      )(onError)
-    } yield resp.email
-
   override def getUserSubjectId(userEmail: WorkbenchEmail,
                                 googleProject: GoogleProject)(implicit ev: Ask[F, TraceId]): F[Option[UserSubjectId]] =
     for {

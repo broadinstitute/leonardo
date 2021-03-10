@@ -9,19 +9,25 @@ sealed trait SamResourceId {
   def asString: String = resourceId
 }
 
-final case class RuntimeSamResourceId(resourceId: String) extends SamResourceId
-final case class PersistentDiskSamResourceId(resourceId: String) extends SamResourceId
-final case class ProjectSamResourceId(googleProject: GoogleProject) extends SamResourceId {
-  override def resourceId: String = googleProject.value
+object SamResourceId {
+  final case class RuntimeSamResourceId(resourceId: String) extends SamResourceId
+
+  final case class PersistentDiskSamResourceId(resourceId: String) extends SamResourceId
+
+  final case class ProjectSamResourceId(googleProject: GoogleProject) extends SamResourceId {
+    override def resourceId: String = googleProject.value
+  }
+
+  final case class AppSamResourceId(resourceId: String) extends SamResourceId
+
 }
-final case class AppSamResourceId(resourceId: String) extends SamResourceId
 
 sealed trait SamResourceType extends Product with Serializable {
   def asString: String
 }
 object SamResourceType {
   final case object Project extends SamResourceType {
-    val asString = "google-project" //TODO: verify, is this correct?
+    val asString = "google-project"
   }
   final case object Runtime extends SamResourceType {
     val asString = "notebook-cluster"
