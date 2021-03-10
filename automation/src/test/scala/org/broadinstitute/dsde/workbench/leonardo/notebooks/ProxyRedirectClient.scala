@@ -20,16 +20,16 @@ import scala.io.Source
 /**
  * Leonardo API service client.
  */
-object DummyClient extends RestClient with LazyLogging {
+object ProxyRedirectClient extends RestClient with LazyLogging {
 
   private val url = LeonardoConfig.Leonardo.apiUrl
 
-  def get(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken,
-                                                                  webDriver: WebDriver): DummyClientPage = {
+  def get(googleProject: GoogleProject, clusterName: RuntimeName, tool: String)(
+    implicit webDriver: WebDriver
+  ): ProxyRedirectPage = {
     val localhost = java.net.InetAddress.getLocalHost.getHostName
-    val url = s"http://$localhost:9090/${googleProject.value}/${clusterName.asString}/client?token=${token.value}"
-    logger.info(s"Get dummy client: $url")
-    new DummyClientPage(url).open
+    val serverUrl = s"http://localhost:9090/${googleProject.value}/${clusterName.asString}/${tool}/client"
+    new ProxyRedirectPage(serverUrl)
   }
 
   def startServer: Future[Http.ServerBinding] = {
@@ -43,27 +43,21 @@ object DummyClient extends RestClient with LazyLogging {
   }
 
   val route: Route =
-    path(Segment / Segment / "client") { (googleProject, clusterName) =>
+    path(Segment / Segment / Segment / "client") { (googleProject, clusterName, tool) =>
       httpGet {
-        parameter('token.as[String]) { token =>
-          complete {
-            logger.info(s"Serving dummy client for $googleProject/$clusterName")
-            HttpEntity(ContentTypes.`text/html(UTF-8)`,
-                       getContent(GoogleProject(googleProject), RuntimeName(clusterName), LeoAuthToken(token)))
-          }
+        complete {
+          logger.info(s"Serving proxy redirect client for $googleProject/$clusterName/$tool")
+          HttpEntity(ContentTypes.`text/html(UTF-8)`,
+                     getContent(GoogleProject(googleProject), RuntimeName(clusterName), tool))
         }
       }
     }
 
-  private def getContent(googleProject: GoogleProject, clusterName: RuntimeName, token: LeoAuthToken) = {
-    val resourceFile = ResourceFile("dummy-notebook-client.html")
+  private def getContent(googleProject: GoogleProject, clusterName: RuntimeName, tool: String) = {
+    val resourceFile = ResourceFile("redirect-proxy-page.html")
     val raw = Source.fromFile(resourceFile).mkString
     val replacementMap = Map(
-      "leoBaseUrl" -> url,
-      "googleProject" -> googleProject.value,
-      "clusterName" -> clusterName.asString,
-      "token" -> token.value,
-      "googleClientId" -> "some-client"
+      "proxyUrl" -> s"${url}/proxy/${googleProject.value}/${clusterName.asString}/${tool}"
     )
     replacementMap.foldLeft(raw) {
       case (source, (key, replacement)) =>
