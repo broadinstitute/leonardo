@@ -424,6 +424,23 @@ object LeonardoApiClient {
         }
     } yield r
 
+  def createAppWithRetry(
+    googleProject: GoogleProject,
+    appName: AppName,
+    createAppRequest: CreateAppRequest = defaultCreateAppRequest
+  )(implicit client: Client[IO], timer: Timer[IO], authHeader: Authorization): IO[Unit] = {
+    val ioa = createApp(googleProject, appName, createAppRequest).attempt
+    // retries app creation on 409 from Leo due to cluster creation
+    implicit val doneCheckable: DoneCheckable[Either[Throwable, Unit]] = x =>
+      x match {
+        case Left(RestError(message, Status.Conflict, _))
+            if message.contains("You cannot create an app while a cluster is in Set") =>
+          false
+        case _ => true
+      }
+    streamFUntilDone(ioa, 30, 30 seconds).compile.lastOrError.rethrow
+  }
+
   def deleteApp(googleProject: GoogleProject, appName: AppName)(implicit client: Client[IO],
                                                                 authHeader: Authorization): IO[Unit] =
     for {
