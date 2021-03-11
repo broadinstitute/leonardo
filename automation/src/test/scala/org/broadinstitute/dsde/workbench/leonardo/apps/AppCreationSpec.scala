@@ -12,26 +12,26 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 import scala.concurrent.duration._
 
 @DoNotDiscover
-class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAllocUtils with ParallelTestExecution {
+class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with ParallelTestExecution {
   implicit val auth: Authorization =
     Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
 
-  "create and delete an app" in { _ =>
-    withNewProject { googleProject =>
-      val appName = randomAppName
+  "create and delete an app" in { googleProject =>
+    val appName = randomAppName
 
-      val createAppRequest = defaultCreateAppRequest.copy(
-        diskConfig = Some(
-          PersistentDiskRequest(
-            randomDiskName,
-            Some(DiskSize(500)),
-            None,
-            Map.empty
-          )
+    val createAppRequest = defaultCreateAppRequest.copy(
+      diskConfig = Some(
+        PersistentDiskRequest(
+          randomDiskName,
+          Some(DiskSize(500)),
+          None,
+          Map.empty
         )
       )
+    )
 
-      LeonardoApiClient.client.use { implicit client =>
+    LeonardoApiClient.client
+      .use { implicit client =>
         for {
           _ <- loggerIO.info(s"AppCreationSpec: About to create app ${googleProject.value}/${appName.value}")
 
@@ -86,25 +86,25 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
           }
         } yield ()
       }
-    }
+      .unsafeRunSync()
   }
 
-  "stop and start an app" in { _ =>
-    withNewProject { googleProject =>
-      val appName = randomAppName
+  "stop and start an app" in { googleProject =>
+    val appName = randomAppName
 
-      val createAppRequest = defaultCreateAppRequest.copy(
-        diskConfig = Some(
-          PersistentDiskRequest(
-            randomDiskName,
-            Some(DiskSize(500)),
-            None,
-            Map.empty
-          )
+    val createAppRequest = defaultCreateAppRequest.copy(
+      diskConfig = Some(
+        PersistentDiskRequest(
+          randomDiskName,
+          Some(DiskSize(500)),
+          None,
+          Map.empty
         )
       )
+    )
 
-      LeonardoApiClient.client.use { implicit client =>
+    LeonardoApiClient.client
+      .use { implicit client =>
         for {
           _ <- loggerIO.info(s"AppCreationSpec: About to create app ${googleProject.value}/${appName.value}")
 
@@ -196,7 +196,7 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
 
         } yield ()
       }
-    }
+      .unsafeRunSync()
   }
 
 }
