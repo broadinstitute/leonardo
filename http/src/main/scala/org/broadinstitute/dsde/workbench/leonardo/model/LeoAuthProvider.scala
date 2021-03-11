@@ -4,6 +4,7 @@ package model
 import cats.data.NonEmptyList
 import cats.mtl.Ask
 import io.circe.{Decoder, Encoder}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.{
   AppSamResource,
   PersistentDiskSamResource,

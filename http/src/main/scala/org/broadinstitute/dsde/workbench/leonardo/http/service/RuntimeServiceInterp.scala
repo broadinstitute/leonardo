@@ -35,6 +35,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.api.ListRuntimeResponse2
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import com.rms.miu.slickcats.DBIOInstances._
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   DiskUpdate,

@@ -31,8 +31,10 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-
 import java.net.URL
+
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
+
 import scala.concurrent.duration._
 
 class HttpRoutesSpec

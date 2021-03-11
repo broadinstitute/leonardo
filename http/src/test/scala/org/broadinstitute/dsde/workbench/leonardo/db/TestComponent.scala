@@ -31,6 +31,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
 trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtils with BeforeAndAfterAll {
+
   this: TestSuite =>
   implicit override val patienceConfig = PatienceConfig(timeout = scaled(Span(30, Seconds)))
 

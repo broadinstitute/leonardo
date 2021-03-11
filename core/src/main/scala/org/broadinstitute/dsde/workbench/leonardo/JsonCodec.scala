@@ -6,6 +6,7 @@ import java.time.Instant
 import cats.syntax.all._
 import io.circe.syntax._
 import io.circe.{Decoder, DecodingFailure, Encoder}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesApiServerIp
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}

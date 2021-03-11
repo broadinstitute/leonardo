@@ -41,6 +41,7 @@ import org.broadinstitute.dsde.workbench.model.google.{
 }
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.broadinstitute.dsde.workbench.leonardo.db.ClusterRecord
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 
 import scala.concurrent.duration._
 

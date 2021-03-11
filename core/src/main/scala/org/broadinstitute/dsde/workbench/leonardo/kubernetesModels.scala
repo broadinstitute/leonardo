@@ -5,6 +5,7 @@ import java.time.Instant
 import java.util.UUID
 
 import ca.mrvisser.sealerate
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterId, KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{
   NamespaceName,

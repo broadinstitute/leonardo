@@ -5,6 +5,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesModels.Protocol
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
 import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   BatchNodepoolCreateRequest,

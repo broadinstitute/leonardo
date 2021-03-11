@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import enumeratum.{Enum, EnumEntry}
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PersistentDiskSamResourceId
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 

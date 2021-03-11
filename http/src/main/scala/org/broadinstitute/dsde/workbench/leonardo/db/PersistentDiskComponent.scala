@@ -2,8 +2,10 @@ package org.broadinstitute.dsde.workbench.leonardo
 package db
 
 import java.time.Instant
+
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PersistentDiskSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.{dummyDate, unmarshalDestroyedDate}

@@ -19,6 +19,7 @@ import LeoProfile.api._
 import LeoProfile.mappedColumnImplicits._
 import LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.google2.OperationName
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries.runtimeConfigs
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeToMonitor

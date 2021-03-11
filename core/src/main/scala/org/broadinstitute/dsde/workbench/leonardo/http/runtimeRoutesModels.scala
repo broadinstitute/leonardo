@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.http
 
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.{
   AsyncRuntimeFields,
   AuditInfo,
@@ -15,7 +16,6 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   RuntimeError,
   RuntimeImage,
   RuntimeName,
-  RuntimeSamResourceId,
   RuntimeStatus,
   UserJupyterExtensionConfig,
   UserScriptPath

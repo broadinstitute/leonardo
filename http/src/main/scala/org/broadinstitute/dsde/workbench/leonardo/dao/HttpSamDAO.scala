@@ -23,6 +23,7 @@ import com.google.auth.oauth2.ServiceAccountCredentials
 import com.google.common.cache.{CacheBuilder, CacheLoader, LoadingCache}
 import org.broadinstitute.dsde.workbench.google2.credentialResource
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.ProjectSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.util.CacheMetrics

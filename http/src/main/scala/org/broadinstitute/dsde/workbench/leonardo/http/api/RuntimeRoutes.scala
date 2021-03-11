@@ -19,8 +19,10 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{DeleteRuntimeReq
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-
 import java.net.URL
+
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
+
 import scala.concurrent.duration._
 
 class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: UserInfoDirectives)(

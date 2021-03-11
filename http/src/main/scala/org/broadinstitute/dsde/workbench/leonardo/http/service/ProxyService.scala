@@ -5,6 +5,7 @@ package service
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.TimeUnit
+
 import akka.actor.ActorSystem
 import akka.http.scaladsl.{ConnectionContext, Http}
 import akka.http.scaladsl.model.Uri.Host
@@ -20,7 +21,6 @@ import com.typesafe.scalalogging.LazyLogging
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
 import io.chrisdavenport.log4cats.StructuredLogger
-
 import javax.net.ssl.SSLContext
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
@@ -39,6 +39,7 @@ import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
 import akka.http.scaladsl.unmarshalling.Unmarshal
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 
 import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future}

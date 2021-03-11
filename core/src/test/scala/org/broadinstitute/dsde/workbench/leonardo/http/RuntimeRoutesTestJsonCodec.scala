@@ -11,16 +11,16 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   RuntimeError,
   RuntimeImage,
   RuntimeName,
-  RuntimeSamResourceId,
   RuntimeStatus,
   UserJupyterExtensionConfig,
   UserScriptPath
 }
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-
 import java.net.URL
 import java.time.Instant
+
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
 
 object RuntimeRoutesTestJsonCodec {
   implicit val dataprocConfigEncoder: Encoder[RuntimeConfigRequest.DataprocConfig] = Encoder.forProduct8(

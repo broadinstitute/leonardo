@@ -7,6 +7,7 @@ import cats.effect.IO
 import cats.syntax.all._
 import cats.mtl.Ask
 import io.circe.{Decoder, Encoder}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model.{SamResource, SamResourceAction}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject

@@ -25,9 +25,11 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
 }
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
-
 import java.time.Instant
 import java.util.UUID
+
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
+
 import scala.concurrent.ExecutionContext
 
 class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,

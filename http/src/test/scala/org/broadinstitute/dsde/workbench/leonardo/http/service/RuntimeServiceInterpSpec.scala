@@ -4,6 +4,7 @@ package service
 
 import java.time.Instant
 import java.util.UUID
+
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
@@ -16,7 +17,7 @@ import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleStorageInterpreter,
   MockComputePollOperation
 }
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{gceRuntimeConfig, testCluster, userInfo, _}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{gceRuntimeConfig, userInfo, testCluster, _}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
@@ -53,8 +54,9 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatestplus.mockito.MockitoSugar
-
 import java.net.URL
+
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
 
 class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
   val publisherQueue = QueueFactory.makePublisherQueue()

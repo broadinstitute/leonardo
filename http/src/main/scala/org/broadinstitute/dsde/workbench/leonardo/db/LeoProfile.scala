@@ -20,6 +20,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{
   ServiceAccountName,
   ServiceName
 }
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsPath, GoogleProject}
 import org.broadinstitute.dsp.Release

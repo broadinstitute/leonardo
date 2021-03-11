@@ -6,6 +6,7 @@ import java.time.Instant
 import cats.syntax.all._
 import enumeratum.{Enum, EnumEntry}
 import monocle.Prism
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, OperationName}
 import org.broadinstitute.dsde.workbench.google2.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeContainerServiceType.JupyterService
